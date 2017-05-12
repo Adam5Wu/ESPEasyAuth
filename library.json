@@ -1,0 +1,17 @@
+{
+  "name":"ESPEasyAuth",
+  "description":"ESP8266 Arduino authentication middleware",
+  "keywords":"esp8266,account,auth",
+  "authors":
+  {
+    "name": "Zhenyu Wu",
+    "maintainer": true
+  },
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/Adam5Wu/ESPEasyAuth.git"
+  },
+  "frameworks": "arduino",
+  "platforms":"espressif",
+}
