@@ -11,7 +11,7 @@
 	- [ESPAsyncWebServer fork](https://github.com/Adam5Wu/ESPAsyncWebServer)
 	- [esp8266FTPServer fork](https://github.com/Adam5Wu/esp8266FTPServer)
 
-Authentication middleware for ESP8266 Arduino
+Authentication middleware library for ESP8266 Arduino.
 
 ## Purpose
 
