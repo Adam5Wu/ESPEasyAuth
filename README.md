@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/github/license/Adam5Wu/ESPEasyAuth.svg)](./LICENSE)
 
 * Requires:
-	- [ESP8266 Arduino Core Fork](https://github.com/Adam5Wu/Arduino)
+	- [ESP8266 Arduino Core Fork](https://github.com/Adam5Wu/Arduino-esp8266)
 	- [ZWUtils-Arduino](https://github.com/Adam5Wu/ZWUtils-Arduino)
 * Potentially interesting:
 	- [ESPAsyncWebServer fork](https://github.com/Adam5Wu/ESPAsyncWebServer)
