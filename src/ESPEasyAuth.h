@@ -24,7 +24,7 @@
 #endif
 
 #ifndef ESPEA_DEBUG_LEVEL
-#define ESPEA_DEBUG_LEVEL 1
+#define ESPEA_DEBUG_LEVEL 3
 #endif
 
 #if ESPEA_DEBUG_LEVEL < 1
@@ -67,9 +67,7 @@ class Identity {
 
 	protected:
 		Identity(String const& id) : ID(id) {}
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
 		Identity(String && id) : ID(std::move(id)) {}
-#endif
 
 		Identity(Identity const&) = delete;
 		Identity& operator=(Identity const&) = delete;
@@ -187,6 +185,7 @@ class AuthSession {
 class IdentityProvider {
 	protected:
 		Identity* CreateIdentity(String const& id) { return new Identity(id); }
+		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const = 0;
 	public:
 		static Identity UNKNOWN_IDENTITY;
 		static Identity ANONYMOUS;
@@ -197,6 +196,9 @@ class IdentityProvider {
 };
 
 class DummyIdentityProvider : public IdentityProvider {
+	protected:
+		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const override
+		{ return 0; }
 	public:
 		virtual Identity& getIdentity(String const& identName) const override
 		{ return UNKNOWN_IDENTITY; }
@@ -233,6 +235,7 @@ class DummySessionAuthority : public SessionAuthority {
 
 class BasicAccountAuthority : public IdentityProvider, public BasicAuthorizer {
 	protected:
+		bool _AnonymousIdent;
 		bool _WildEmptySecret;
 		struct SimpleAccountStorage {
 			Identity* IDENT;
@@ -242,10 +245,12 @@ class BasicAccountAuthority : public IdentityProvider, public BasicAuthorizer {
 
 		virtual size_t _addAccount(char const *identName, String &&secret);
 		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) = 0;
+		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const override;
 
 	public:
-		BasicAccountAuthority(bool WildEmptySecret)
-		: _WildEmptySecret(WildEmptySecret), Accounts([](SimpleAccountStorage &x){delete x.IDENT;}) {}
+		BasicAccountAuthority(bool AnonymousIdent, bool WildEmptySecret)
+		: _AnonymousIdent(AnonymousIdent), _WildEmptySecret(WildEmptySecret),
+			Accounts([](SimpleAccountStorage &x){delete x.IDENT;}) {}
 		~BasicAccountAuthority(void) {}
 
 		bool removeAccount(char const *identName);
@@ -262,8 +267,8 @@ class SimpleAccountAuthority : public BasicAccountAuthority {
 		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) override;
 
 	public:
-		SimpleAccountAuthority(bool AllowNoPassword = true)
-		: BasicAccountAuthority(AllowNoPassword) {}
+		SimpleAccountAuthority(bool AnonymousIdent = true, bool AllowNoPassword = true)
+		: BasicAccountAuthority(AnonymousIdent, AllowNoPassword) {}
 		~SimpleAccountAuthority(void) {}
 
 		size_t addAccount(char const *identName, char const *password);
@@ -282,8 +287,9 @@ class HTTPDigestAccountAuthority : public BasicAccountAuthority {
 
 	public:
 		String const Realm;
-		HTTPDigestAccountAuthority(String const &realm, DigestType dtype = EA_DIGEST_MD5, bool AllowNoPassword = true)
-		: Realm(realm), _DType(dtype), BasicAccountAuthority(AllowNoPassword) {}
+		HTTPDigestAccountAuthority(String const &realm, DigestType dtype = EA_DIGEST_MD5,
+			bool AnonymousIdent = true, bool AllowNoPassword = true)
+		: BasicAccountAuthority(AnonymousIdent, AllowNoPassword), Realm(realm), _DType(dtype) {}
 		~HTTPDigestAccountAuthority(void) {}
 
 		size_t addAccount(char const *identName, char const *password);

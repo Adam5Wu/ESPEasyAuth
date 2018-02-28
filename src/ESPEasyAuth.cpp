@@ -28,16 +28,28 @@ LinkedList<Identity*> IdentityProvider::parseIdentities(char const *Str) const {
 	while (Str && *Str) {
 		String StrIdent = getQuotedToken(Str,',');
 		if (StrIdent.empty()) continue;
+		if (StrIdent.equals("*")) {
+			_populateIdentities(Ret);
+			continue;
+		}
+		bool Remove = (StrIdent[0] == '~');
+		if (Remove) StrIdent.remove(0);
 		Identity &Ident = getIdentity(StrIdent);
 		if (Ident == UNKNOWN_IDENTITY) {
 			ESPEA_DEBUG("WARNING: Un-recognized identity '%s'!\n", StrIdent.c_str());
 			continue;
 		}
-		if (Ret.get_if([&](Identity *const &r){ return *r == Ident; })) {
-			ESPEA_DEBUG("WARNING: Ignore duplicate identity '%s'!\n", StrIdent.c_str());
-			continue;
+		if (Remove) {
+			if (!Ret.remove_if([&](Identity *const &r){ return *r == Ident; })) {
+				ESPEA_DEBUG("WARNING: Ignore missing identity '%s'!\n", StrIdent.c_str());
+			}
+		} else {
+			if (Ret.get_if([&](Identity *const &r){ return *r == Ident; })) {
+				ESPEA_DEBUG("WARNING: Ignore duplicate identity '%s'!\n", StrIdent.c_str());
+				continue;
+			}
+			Ret.append(&Ident);
 		}
-		Ret.append(&Ident);
 	}
 	return Ret;
 }
@@ -73,6 +85,19 @@ size_t BasicAccountAuthority::_addAccount(char const *identName, String &&secret
 		ESPEA_DEBUGVV("New account [%s], secret: %s\n", identName, secret.c_str());
 		return Accounts.append({CreateIdentity(identName),std::move(secret)});
 	}
+}
+
+size_t BasicAccountAuthority::_populateIdentities(LinkedList<Identity*> &list) const {
+	size_t Ret = 0;
+	for (auto Iter = Accounts.begin(); Iter != Accounts.end(); ++Iter) {
+		if (list.get_if([&](Identity *const &r){ return *r == *Iter->IDENT; })) {
+			ESPEA_DEBUG("WARNING: Ignore duplicate identity '%s'!\n", Iter->IDENT->ID.c_str());
+			continue;
+		}
+		list.append(Iter->IDENT);
+		Ret++;
+	}
+	return Ret;
 }
 
 bool BasicAccountAuthority::removeAccount(char const *identName) {
@@ -111,6 +136,8 @@ size_t BasicAccountAuthority::saveAccounts(Print &dest) {
 }
 
 Identity& BasicAccountAuthority::getIdentity(String const& identName) const {
+	if (_AnonymousIdent && identName.equalsIgnoreCase(ANONYMOUS.ID))
+		return ANONYMOUS;
 	auto Account = Accounts.get_if([&](SimpleAccountStorage const &x) {
 		return x.IDENT->ID.equalsIgnoreCase(identName);
 	});
