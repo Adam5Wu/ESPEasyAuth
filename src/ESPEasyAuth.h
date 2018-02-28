@@ -19,15 +19,20 @@
 #ifndef ESPEasyAuth_H
 #define ESPEasyAuth_H
 
-#define ESPEA_LOG(...) Serial.printf(__VA_ARGS__)
-#define ESPEA_DEBUG_LEVEL 3
+#ifndef ESPEA_LOG
+#define ESPEA_LOG(...) ESPZW_LOG(__VA_ARGS__)
+#endif
+
+#ifndef ESPEA_DEBUG_LEVEL
+#define ESPEA_DEBUG_LEVEL 1
+#endif
 
 #if ESPEA_DEBUG_LEVEL < 1
 	#define ESPEA_DEBUGDO(...)
 	#define ESPEA_DEBUG(...)
 #else
 	#define ESPEA_DEBUGDO(...) __VA_ARGS__
-	#define ESPEA_DEBUG(...) Serial.printf(__VA_ARGS__)
+	#define ESPEA_DEBUG(...) ESPEA_LOG(__VA_ARGS__)
 #endif
 
 #if ESPEA_DEBUG_LEVEL < 2
@@ -35,7 +40,7 @@
 	#define ESPEA_DEBUGV(...)
 #else
 	#define ESPEA_DEBUGVDO(...) __VA_ARGS__
-	#define ESPEA_DEBUGV(...) Serial.printf(__VA_ARGS__)
+	#define ESPEA_DEBUGV(...) ESPEA_LOG(__VA_ARGS__)
 #endif
 
 #if ESPEA_DEBUG_LEVEL < 3
@@ -43,17 +48,17 @@
 	#define ESPEA_DEBUGVV(...)
 #else
 	#define ESPEA_DEBUGVVDO(...) __VA_ARGS__
-	#define ESPEA_DEBUGVV(...) Serial.printf(__VA_ARGS__)
+	#define ESPEA_DEBUGVV(...) ESPEA_LOG(__VA_ARGS__)
 #endif
 
 //#define SECURE_SECRET_WIPE
-//#define STRICT_PROTOCOL
+#define STRICT_PROTOCOL
 
 #include <utility>
 #include "WString.h"
 #include "LinkedList.h"
 #include "StringArray.h"
-	
+
 class IdentityProvider;
 
 // Instance only comes from IdentityProvider, and is globally unique
@@ -80,12 +85,14 @@ inline bool operator==(const Identity& lhs, const Identity& rhs)
 
 inline bool operator!=(const Identity& lhs, const Identity& rhs)
 { return &lhs != &rhs; }
-	
+
 typedef enum {
 	EA_SECRET_NONE,
 	EA_SECRET_PLAINTEXT,
 	EA_SECRET_HTTPDIGESTAUTH_MD5,
 	EA_SECRET_HTTPDIGESTAUTH_MD5SESS,
+	EA_SECRET_HTTPDIGESTAUTH_SHA256,
+	EA_SECRET_HTTPDIGESTAUTH_SHA256SESS,
 } SecretKind;
 
 struct Credential {
@@ -129,9 +136,9 @@ class BasicAuthorizer : public Authorizer {
 class DummyAuthorizer : public BasicAuthorizer {
 	public:
 		bool const AuthState;
-		
+
 		DummyAuthorizer(bool state = false) : AuthState(state) {}
-		
+
 		virtual bool Authenticate(Credential& cred) override
 		{ return cred.disposeSecret(), AuthState; }
 };
@@ -152,7 +159,7 @@ class AuthSession {
 
 		AuthSession(AuthSession &&r)
 		: AUTH(r.AUTH), IDENT(r.IDENT), DATA(std::move(DATA)) {}
-	
+
 		bool isAuthorized(void) const { return !AUTH; }
 
 		bool Authorize(SecretKind skind, char const *secret)
@@ -224,27 +231,62 @@ class DummySessionAuthority : public SessionAuthority {
 		: SessionAuthority(&D_IDP, &D_AUTH), D_AUTH(authState) {}
 };
 
-class SimpleAccountAuthority : public IdentityProvider, public BasicAuthorizer {
+class BasicAccountAuthority : public IdentityProvider, public BasicAuthorizer {
 	protected:
-		bool _AllowNoPassword;
-		struct SimpleAccount {
+		bool _WildEmptySecret;
+		struct SimpleAccountStorage {
 			Identity* IDENT;
-			String Password;
+			String SECRET;
 		};
-		LinkedList<SimpleAccount> Accounts;
+		LinkedList<SimpleAccountStorage> Accounts;
+
+		virtual size_t _addAccount(char const *identName, String &&secret);
+		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) = 0;
 
 	public:
-		SimpleAccountAuthority(bool AllowNoPassword = true)
-		: _AllowNoPassword(AllowNoPassword), Accounts([](SimpleAccount &x){delete x.IDENT;}) {}
-		~SimpleAccountAuthority(void) {}
+		BasicAccountAuthority(bool WildEmptySecret)
+		: _WildEmptySecret(WildEmptySecret), Accounts([](SimpleAccountStorage &x){delete x.IDENT;}) {}
+		~BasicAccountAuthority(void) {}
 
-		size_t addAccount(char const *identName, char const *password);
 		bool removeAccount(char const *identName);
 
 		size_t loadAccounts(Stream &source);
+		size_t saveAccounts(Print &dest);
 
 		virtual Identity& getIdentity(String const& identName) const override;
 		virtual bool Authenticate(Credential& cred) override;
+};
+
+class SimpleAccountAuthority : public BasicAccountAuthority {
+	protected:
+		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) override;
+
+	public:
+		SimpleAccountAuthority(bool AllowNoPassword = true)
+		: BasicAccountAuthority(AllowNoPassword) {}
+		~SimpleAccountAuthority(void) {}
+
+		size_t addAccount(char const *identName, char const *password);
+};
+
+typedef enum {
+	EA_DIGEST_MD5,
+	EA_DIGEST_SHA256,
+} DigestType;
+
+class HTTPDigestAccountAuthority : public BasicAccountAuthority {
+	protected:
+		DigestType const _DType;
+		virtual size_t _addAccount(char const *identName, String &&secret) override;
+		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) override;
+
+	public:
+		String const Realm;
+		HTTPDigestAccountAuthority(String const &realm, DigestType dtype = EA_DIGEST_MD5, bool AllowNoPassword = true)
+		: Realm(realm), _DType(dtype), BasicAccountAuthority(AllowNoPassword) {}
+		~HTTPDigestAccountAuthority(void) {}
+
+		size_t addAccount(char const *identName, char const *password);
 };
 
 #endif // ESPEasyAuth_H
