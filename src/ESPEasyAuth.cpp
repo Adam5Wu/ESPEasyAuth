@@ -27,7 +27,7 @@ LinkedList<Identity*> IdentityProvider::parseIdentities(char const *Str) const {
 	LinkedList<Identity*> Ret(NULL);
 	while (Str && *Str) {
 		String StrIdent = getQuotedToken(Str,',');
-		if (StrIdent.empty()) continue;
+		if (!StrIdent) continue;
 		if (StrIdent.equals("*")) {
 			_populateIdentities(Ret);
 			continue;
@@ -73,7 +73,7 @@ size_t BasicAccountAuthority::_addAccount(char const *identName, String &&secret
 	auto Account = Accounts.get_if([&](SimpleAccountStorage const &x) {
 		return x.IDENT->ID.equals(identName);
 	});
-	if (secret.empty()) {
+	if (!secret) {
 		if (_WildEmptySecret) ESPEA_LOG("WARNING: Account '%s' will authenticate with any secret!\n", identName);
 		else ESPEA_LOG("WARNING: Account '%s' will NOT authenticates with any secret!\n", identName);
 	}
@@ -111,7 +111,7 @@ size_t BasicAccountAuthority::loadAccounts(Stream &source) {
 	while (source.available()) {
 		String Line = source.readStringUntil('\n');
 		Line.trim();
-		if (Line.empty()) continue;
+		if (!Line) continue;
 
 		char const* Ptr = Line.begin();
 		String name = getQuotedToken(Ptr, ':');
@@ -145,12 +145,14 @@ Identity& BasicAccountAuthority::getIdentity(String const& identName) const {
 }
 
 bool BasicAccountAuthority::Authenticate(Credential& cred) {
+	if (_AnonymousIdent && (cred.IDENT == ANONYMOUS))
+		return true;
 	auto Account = Accounts.get_if([&](SimpleAccountStorage const &x) {
 		return *x.IDENT == cred.IDENT;
 	});
 	bool Ret = false;
 	if (Account) {
-		if (Account->SECRET.empty()) Ret = _WildEmptySecret;
+		if (!Account->SECRET) Ret = _WildEmptySecret;
 		else Ret = _doAuthenticate(*Account, cred);
 		cred.disposeSecret();
 	}
@@ -296,16 +298,16 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 				ESPEA_DEBUG("WARNING: Unexpected response length %d (expect)\n", response.length(), MD5_TXTLEN);
 				return false;
 			}
-			while (!qop.empty()) {
+			while (qop) {
 				if (!qop.equals("auth")) {
 					ESPEA_LOG("WARNING: Unsupported QoP '%s'\n", qop.c_str());
-				} else if (nc.empty() || cnonce.empty()) {
+				} else if (!nc || !cnonce) {
 					ESPEA_DEBUG("WARNING: Missing required secret fields\n");
 				} else break;
 				return false;
 			}
 #ifdef STRICT_PROTOCOL
-			if (qop.empty() && (!nc.empty() || (cred.SECKIND != EA_SECRET_HTTPDIGESTAUTH_MD5SESS && !cnonce.empty()))) {
+			if (!qop && (nc || (cred.SECKIND != EA_SECRET_HTTPDIGESTAUTH_MD5SESS && cnonce))) {
 				ESPEA_DEBUG("WARNING: Excessive secret fields with no QoP\n");
 			}
 #endif
@@ -396,16 +398,16 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 				ESPEA_DEBUG("WARNING: Unexpected response length %d (expect)\n", response.length(), SHA256_TXTLEN);
 				return false;
 			}
-			while (!qop.empty()) {
+			while (qop) {
 				if (!qop.equals("auth")) {
 					ESPEA_LOG("WARNING: Unsupported QoP '%s'\n", qop.c_str());
-				} else if (nc.empty() || cnonce.empty()) {
+				} else if (!nc || !cnonce) {
 					ESPEA_DEBUG("WARNING: Missing required secret fields\n");
 				} else break;
 				return false;
 			}
 #ifdef STRICT_PROTOCOL
-				if (qop.empty() && (!nc.empty() || (cred.SECKIND != EA_SECRET_HTTPDIGESTAUTH_SHA256SESS && !cnonce.empty()))) {
+				if (!qop && (nc || (cred.SECKIND != EA_SECRET_HTTPDIGESTAUTH_SHA256SESS && cnonce))) {
 					ESPEA_DEBUG("WARNING: Excessive secret fields with no QoP\n");
 				}
 #endif

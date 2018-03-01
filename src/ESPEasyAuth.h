@@ -24,7 +24,7 @@
 #endif
 
 #ifndef ESPEA_DEBUG_LEVEL
-#define ESPEA_DEBUG_LEVEL 3
+#define ESPEA_DEBUG_LEVEL ESPZW_DEBUG_LEVEL
 #endif
 
 #if ESPEA_DEBUG_LEVEL < 1
