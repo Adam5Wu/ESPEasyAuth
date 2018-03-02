@@ -74,8 +74,11 @@ size_t BasicAccountAuthority::_addAccount(char const *identName, String &&secret
 		return x.IDENT->ID.equals(identName);
 	});
 	if (!secret) {
-		if (_WildEmptySecret) ESPEA_LOG("WARNING: Account '%s' will authenticate with any secret!\n", identName);
-		else ESPEA_LOG("WARNING: Account '%s' will NOT authenticates with any secret!\n", identName);
+		if (_WildEmptySecret) {
+			ESPEA_LOG("WARNING: Account '%s' will authenticate with any secret!\n", identName);
+		} else {
+			ESPEA_LOG("WARNING: Account '%s' will NOT authenticates with any secret!\n", identName);
+		}
 	}
 	if (Account) {
 		ESPEA_DEBUG("Updating account [%s], new secret: %s\n", identName, secret.c_str());
