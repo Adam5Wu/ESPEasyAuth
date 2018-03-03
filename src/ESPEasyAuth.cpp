@@ -20,11 +20,19 @@
 #include "ESPEasyAuth.h"
 #include "Misc.h"
 
-Identity IdentityProvider::UNKNOWN_IDENTITY("<Unknown-Identity>");
-Identity IdentityProvider::ANONYMOUS("Anonymous");
+Identity IdentityProvider::ANONYMOUS(ANONYMOUS_ID);
+Identity IdentityProvider::UNKNOWN(UNKNOWN_ID);
+
+Identity* IdentityProvider::CreateIdentity(String const& id) {
+	if (!id || id[1] == ID_EXCLUSION) {
+		ESPEA_LOG("WARNING: Cannot create identity with invalid ID '%s'\n", id.c_str());
+		return nullptr;
+	}
+	return new Identity(id);
+}
 
 LinkedList<Identity*> IdentityProvider::parseIdentities(char const *Str) const {
-	LinkedList<Identity*> Ret(NULL);
+	LinkedList<Identity*> Ret(nullptr);
 	while (Str && *Str) {
 		String StrIdent = getQuotedToken(Str,',');
 		if (!StrIdent) continue;
@@ -32,10 +40,10 @@ LinkedList<Identity*> IdentityProvider::parseIdentities(char const *Str) const {
 			_populateIdentities(Ret);
 			continue;
 		}
-		bool Remove = (StrIdent[0] == '~');
+		bool Remove = (StrIdent[0] == ID_EXCLUSION);
 		if (Remove) StrIdent.remove(0);
 		Identity &Ident = getIdentity(StrIdent);
-		if (Ident == UNKNOWN_IDENTITY) {
+		if (Ident == UNKNOWN) {
 			ESPEA_DEBUG("WARNING: Un-recognized identity '%s'!\n", StrIdent.c_str());
 			continue;
 		}
@@ -66,7 +74,7 @@ String IdentityProvider::mapIdentities(LinkedList<Identity*> const &idents) cons
 // Basic Account Authority
 
 size_t BasicAccountAuthority::_addAccount(char const *identName, String &&secret) {
-	if (UNKNOWN_IDENTITY.ID.equals(identName)) {
+	if (UNKNOWN.ID.equals(identName) || ANONYMOUS.ID.equals(identName)) {
 		ESPEA_LOG("WARNING: Cannot update reserved identity '%s'\n", identName);
 		return Accounts.length();
 	}
@@ -85,8 +93,11 @@ size_t BasicAccountAuthority::_addAccount(char const *identName, String &&secret
 		Account->SECRET = std::move(secret);
 		return Accounts.length();
 	} else {
-		ESPEA_DEBUGVV("New account [%s], secret: %s\n", identName, secret.c_str());
-		return Accounts.append({CreateIdentity(identName),std::move(secret)});
+		auto IDENT = CreateIdentity(identName);
+		if (IDENT) {
+			ESPEA_DEBUGVV("New account [%s], secret: %s\n", identName, secret.c_str());
+			return Accounts.append({IDENT,std::move(secret)});
+		} else return Accounts.length();
 	}
 }
 
@@ -144,7 +155,7 @@ Identity& BasicAccountAuthority::getIdentity(String const& identName) const {
 	auto Account = Accounts.get_if([&](SimpleAccountStorage const &x) {
 		return x.IDENT->ID.equalsIgnoreCase(identName);
 	});
-	return Account? *Account->IDENT : UNKNOWN_IDENTITY;
+	return Account? *Account->IDENT : UNKNOWN;
 }
 
 bool BasicAccountAuthority::Authenticate(Credential& cred) {

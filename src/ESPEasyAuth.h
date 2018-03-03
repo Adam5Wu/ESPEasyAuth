@@ -59,6 +59,10 @@
 #include "LinkedList.h"
 #include "StringArray.h"
 
+#define ANONYMOUS_ID "<Anonymous>"
+#define UNKNOWN_ID   "<Unknown>"
+#define ID_EXCLUSION '~'
+
 class IdentityProvider;
 
 // Instance only comes from IdentityProvider, and is globally unique
@@ -153,7 +157,7 @@ class AuthSession {
 		: AUTH(auth), IDENT(ident) {}
 
 		AuthSession(Credential &cred, Authorizer *auth)
-		: AUTH(auth->Authenticate(cred)?NULL:auth), IDENT(cred.IDENT) {}
+		: AUTH(auth->Authenticate(cred)?nullptr:auth), IDENT(cred.IDENT) {}
 
 		AuthSession(AuthSession &&r)
 		: AUTH(r.AUTH), IDENT(r.IDENT), DATA(std::move(DATA)) {}
@@ -167,7 +171,7 @@ class AuthSession {
 			return Authorize(C);
 		}
 		bool Authorize(Credential &cred) {
-			if (AUTH && AUTH->Authorize(IDENT, cred)) AUTH = NULL;
+			if (AUTH && AUTH->Authorize(IDENT, cred)) AUTH = nullptr;
 			return isAuthorized();
 		}
 
@@ -184,10 +188,10 @@ class AuthSession {
 
 class IdentityProvider {
 	protected:
-		Identity* CreateIdentity(String const& id) { return new Identity(id); }
+		Identity* CreateIdentity(String const& id);
 		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const = 0;
 	public:
-		static Identity UNKNOWN_IDENTITY;
+		static Identity UNKNOWN;
 		static Identity ANONYMOUS;
 		virtual Identity& getIdentity(String const& identName) const = 0;
 
@@ -201,7 +205,7 @@ class DummyIdentityProvider : public IdentityProvider {
 		{ return 0; }
 	public:
 		virtual Identity& getIdentity(String const& identName) const override
-		{ return UNKNOWN_IDENTITY; }
+		{ return UNKNOWN; }
 };
 
 class SessionAuthority {
