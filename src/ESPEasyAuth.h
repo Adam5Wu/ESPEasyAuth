@@ -151,7 +151,6 @@ class AuthSession {
 
 	public:
 		Identity &IDENT;
-		StringArray DATA;
 
 		AuthSession(Identity &ident, Authorizer *auth)
 		: AUTH(auth), IDENT(ident) {}
@@ -160,7 +159,7 @@ class AuthSession {
 		: AUTH(auth->Authenticate(cred)?nullptr:auth), IDENT(cred.IDENT) {}
 
 		AuthSession(AuthSession &&r)
-		: AUTH(r.AUTH), IDENT(r.IDENT), DATA(std::move(DATA)) {}
+		: AUTH(r.AUTH), IDENT(r.IDENT) {}
 
 		bool isAuthorized(void) const { return !AUTH; }
 
