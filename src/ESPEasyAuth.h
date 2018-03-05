@@ -19,12 +19,14 @@
 #ifndef ESPEasyAuth_H
 #define ESPEasyAuth_H
 
-#ifndef ESPEA_LOG
-#define ESPEA_LOG(...) ESPZW_LOG(__VA_ARGS__)
-#endif
+#include <Misc.h>
 
 #ifndef ESPEA_DEBUG_LEVEL
 #define ESPEA_DEBUG_LEVEL ESPZW_DEBUG_LEVEL
+#endif
+
+#ifndef ESPEA_LOG
+#define ESPEA_LOG(...) ESPZW_LOG(__VA_ARGS__)
 #endif
 
 #if ESPEA_DEBUG_LEVEL < 1
@@ -125,6 +127,7 @@ struct Credential {
 
 class Authorizer {
 	public:
+		virtual ~Authorizer(void) {}
 		virtual bool Authenticate(Credential& cred) = 0;
 		virtual bool Authorize(Identity &ident, Credential& cred) = 0;
 };
@@ -158,8 +161,10 @@ class AuthSession {
 		AuthSession(Credential &cred, Authorizer *auth)
 		: AUTH(auth->Authenticate(cred)?nullptr:auth), IDENT(cred.IDENT) {}
 
-		AuthSession(AuthSession &&r)
-		: AUTH(r.AUTH), IDENT(r.IDENT) {}
+		AuthSession(AuthSession &&session)
+		: AUTH(session.AUTH), IDENT(session.IDENT) {}
+
+		virtual ~AuthSession(void) {}
 
 		bool isAuthorized(void) const { return !AUTH; }
 
@@ -190,6 +195,8 @@ class IdentityProvider {
 		Identity* CreateIdentity(String const& id);
 		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const = 0;
 	public:
+		virtual ~IdentityProvider(void) {}
+		
 		static Identity UNKNOWN;
 		static Identity ANONYMOUS;
 		virtual Identity& getIdentity(String const& identName) const = 0;
@@ -214,6 +221,8 @@ class SessionAuthority {
 
 		SessionAuthority(IdentityProvider *idp, Authorizer *auth)
 		: IDP(idp), AUTH(auth) {}
+		
+		virtual ~SessionAuthority(void) {}
 
 		AuthSession getSession(String const& identName)
 		{ return AuthSession(IDP->getIdentity(identName), AUTH); }
@@ -254,7 +263,6 @@ class BasicAccountAuthority : public IdentityProvider, public BasicAuthorizer {
 		BasicAccountAuthority(bool AnonymousIdent, bool WildEmptySecret)
 		: _AnonymousIdent(AnonymousIdent), _WildEmptySecret(WildEmptySecret),
 			Accounts([](SimpleAccountStorage &x){delete x.IDENT;}) {}
-		~BasicAccountAuthority(void) {}
 
 		bool removeAccount(char const *identName);
 
@@ -293,7 +301,6 @@ class HTTPDigestAccountAuthority : public BasicAccountAuthority {
 		HTTPDigestAccountAuthority(String const &realm, DigestType dtype = EA_DIGEST_MD5,
 			bool AnonymousIdent = true, bool AllowNoPassword = true)
 		: BasicAccountAuthority(AnonymousIdent, AllowNoPassword), Realm(realm), _DType(dtype) {}
-		~HTTPDigestAccountAuthority(void) {}
 
 		size_t addAccount(char const *identName, char const *password);
 };

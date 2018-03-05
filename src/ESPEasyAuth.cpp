@@ -16,9 +16,9 @@
  * along with this program.	If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "Arduino.h"
 #include "ESPEasyAuth.h"
-#include "Misc.h"
+
+#include "Arduino.h"
 
 Identity IdentityProvider::ANONYMOUS(ANONYMOUS_ID);
 Identity IdentityProvider::UNKNOWN(UNKNOWN_ID);
@@ -285,8 +285,8 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 				return false;
 			}
 			if (HashedPassword.length() != MD5_TXTLEN) {
-				ESPEA_DEBUG("WARNING: Unexpected digest text length %d (expect %d)\n",
-					HashedPassword.length(), MD5_TXTLEN);
+				ESPEA_DEBUG("WARNING: Unexpected digest text length %"PRIi16" (expect %"PRIi16")\n",
+					HashedPassword.length(), (unsigned int)MD5_TXTLEN);
 				return false;
 			}
 			char const* ptr = cred.SECRET.begin();
@@ -309,7 +309,8 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 
 			// Validate input
 			if (response.length() != MD5_TXTLEN) {
-				ESPEA_DEBUG("WARNING: Unexpected response length %d (expect)\n", response.length(), MD5_TXTLEN);
+				ESPEA_DEBUG("WARNING: Unexpected response length %"PRIi16" (expect %"PRIi16")\n",
+					response.length(), (unsigned int)MD5_TXTLEN);
 				return false;
 			}
 			while (qop) {
@@ -385,8 +386,8 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 				return false;
 			}
 			if (HashedPassword.length() != SHA256_TXTLEN) {
-				ESPEA_DEBUG("WARNING: Unexpected digest text length %d (expect %d)\n",
-				HashedPassword.length(), SHA256_TXTLEN);
+				ESPEA_DEBUG("WARNING: Unexpected digest text length %"PRIi16" (expect %"PRIi16")\n",
+				HashedPassword.length(), (unsigned int)SHA256_TXTLEN);
 				return false;
 			}
 			char const* ptr = cred.SECRET.begin();
@@ -409,7 +410,8 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 
 			// Validate input
 			if (response.length() != SHA256_TXTLEN) {
-				ESPEA_DEBUG("WARNING: Unexpected response length %d (expect)\n", response.length(), SHA256_TXTLEN);
+				ESPEA_DEBUG("WARNING: Unexpected response length %"PRIi16" (expect %"PRIi16")\n",
+					response.length(), (unsigned int)SHA256_TXTLEN);
 				return false;
 			}
 			while (qop) {
@@ -523,14 +525,16 @@ size_t HTTPDigestAccountAuthority::_addAccount(char const *identName, String &&s
 	switch (_DType) {
 		case EA_DIGEST_MD5: {
 			if (secret.length() != MD5_TXTLEN) {
-				ESPEA_LOG("WARNING: Unexpected secret length %d (expect)\n", secret.length(), MD5_TXTLEN);
+				ESPEA_LOG("WARNING: Unexpected secret length %"PRIi16" (expect %"PRIi16")\n",
+					secret.length(), (unsigned int)MD5_TXTLEN);
 				return Accounts.length();
 			}
 		} break;
 		case EA_DIGEST_SHA256: {
 #if 0
 			if (secret.length() != SHA256_TXTLEN) {
-				ESPEA_LOG("WARNING: Unexpected secret length %d (expect)\n", secret.length(), SHA256_TXTLEN);
+				ESPEA_LOG("WARNING: Unexpected secret length %"PRIi16" (expect %"PRIi16")\n",
+					secret.length(), (unsigned int)SHA256_TXTLEN);
 				return Accounts.length();
 			}
 #endif
