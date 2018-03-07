@@ -20,11 +20,12 @@
 
 #include "Arduino.h"
 
-Identity IdentityProvider::ANONYMOUS(ANONYMOUS_ID);
 Identity IdentityProvider::UNKNOWN(UNKNOWN_ID);
+Identity IdentityProvider::ANONYMOUS(ANONYMOUS_ID);
+Identity IdentityProvider::AUTHENTICATED(AUTHENTICATED_ID);
 
 Identity* IdentityProvider::CreateIdentity(String const& id) {
-	if (!id || id[1] == ID_EXCLUSION) {
+	if (!id || id[1] == ID_EXCLUSION || id[1] == ID_ALLIDENTS) {
 		ESPEA_LOG("WARNING: Cannot create identity with invalid ID '%s'\n", id.c_str());
 		return nullptr;
 	}
@@ -36,7 +37,7 @@ LinkedList<Identity*> IdentityProvider::parseIdentities(char const *Str) const {
 	while (Str && *Str) {
 		String StrIdent = getQuotedToken(Str,',');
 		if (!StrIdent) continue;
-		if (StrIdent.equals("*")) {
+		if (StrIdent.equals(String(ID_ALLIDENTS))) {
 			_populateIdentities(Ret);
 			continue;
 		}
@@ -74,7 +75,8 @@ String IdentityProvider::mapIdentities(LinkedList<Identity*> const &idents) cons
 // Basic Account Authority
 
 size_t BasicAccountAuthority::_addAccount(char const *identName, String &&secret) {
-	if (UNKNOWN.ID.equals(identName) || ANONYMOUS.ID.equals(identName)) {
+	if (UNKNOWN.ID.equals(identName) || ANONYMOUS.ID.equals(identName) ||
+		AUTHENTICATED.ID.equals(identName)) {
 		ESPEA_LOG("WARNING: Cannot update reserved identity '%s'\n", identName);
 		return Accounts.length();
 	}
@@ -152,6 +154,8 @@ size_t BasicAccountAuthority::saveAccounts(Print &dest) {
 Identity& BasicAccountAuthority::getIdentity(String const& identName) const {
 	if (_AnonymousIdent && identName.equalsIgnoreCase(ANONYMOUS.ID))
 		return ANONYMOUS;
+	if (identName.equalsIgnoreCase(AUTHENTICATED.ID))
+		return AUTHENTICATED;
 	auto Account = Accounts.get_if([&](SimpleAccountStorage const &x) {
 		return x.IDENT->ID.equalsIgnoreCase(identName);
 	});

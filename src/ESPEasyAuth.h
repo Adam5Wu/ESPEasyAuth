@@ -61,9 +61,11 @@
 #include "LinkedList.h"
 #include "StringArray.h"
 
-#define ANONYMOUS_ID "<Anonymous>"
-#define UNKNOWN_ID   "<Unknown>"
-#define ID_EXCLUSION '~'
+#define UNKNOWN_ID			"<Unknown>"
+#define ANONYMOUS_ID		"<Anonymous>"
+#define AUTHENTICATED_ID	"<Authenticated>"
+#define ID_ALLIDENTS		'*'
+#define ID_EXCLUSION		'-'
 
 class IdentityProvider;
 
@@ -196,9 +198,10 @@ class IdentityProvider {
 		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const = 0;
 	public:
 		virtual ~IdentityProvider(void) {}
-		
+
 		static Identity UNKNOWN;
 		static Identity ANONYMOUS;
+		static Identity AUTHENTICATED;
 		virtual Identity& getIdentity(String const& identName) const = 0;
 
 		LinkedList<Identity*> parseIdentities(char const *Str) const;
@@ -221,7 +224,7 @@ class SessionAuthority {
 
 		SessionAuthority(IdentityProvider *idp, Authorizer *auth)
 		: IDP(idp), AUTH(auth) {}
-		
+
 		virtual ~SessionAuthority(void) {}
 
 		AuthSession getSession(String const& identName)
