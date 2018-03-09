@@ -258,7 +258,7 @@ class BasicAccountAuthority : public IdentityProvider, public BasicAuthorizer {
 		};
 		LinkedList<SimpleAccountStorage> Accounts;
 
-		virtual size_t _addAccount(char const *identName, String &&secret);
+		virtual size_t _addAccount(String const &identName, String &&secret);
 		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) = 0;
 		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const override;
 
@@ -296,7 +296,7 @@ typedef enum {
 class HTTPDigestAccountAuthority : public BasicAccountAuthority {
 	protected:
 		DigestType const _DType;
-		virtual size_t _addAccount(char const *identName, String &&secret) override;
+		virtual size_t _addAccount(String const &identName, String &&secret) override;
 		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) override;
 
 	public:

@@ -37,7 +37,7 @@ LinkedList<Identity*> IdentityProvider::parseIdentities(char const *Str) const {
 	while (Str && *Str) {
 		String StrIdent = getQuotedToken(Str,',');
 		if (!StrIdent) continue;
-		if (StrIdent.equals(String(ID_ALLIDENTS))) {
+		if ((StrIdent.length() == 1) && (StrIdent[0] == ID_ALLIDENTS)) {
 			_populateIdentities(Ret);
 			continue;
 		}
@@ -74,30 +74,34 @@ String IdentityProvider::mapIdentities(LinkedList<Identity*> const &idents) cons
 
 // Basic Account Authority
 
-size_t BasicAccountAuthority::_addAccount(char const *identName, String &&secret) {
-	if (UNKNOWN.ID.equals(identName) || ANONYMOUS.ID.equals(identName) ||
-		AUTHENTICATED.ID.equals(identName)) {
-		ESPEA_LOG("WARNING: Cannot update reserved identity '%s'\n", identName);
+size_t BasicAccountAuthority::_addAccount(String const &identName, String &&secret) {
+	if ((identName == FC(UNKNOWN_ID)) || (identName == FC(ANONYMOUS_ID)) ||
+		(identName == FC(AUTHENTICATED_ID))) {
+		ESPEA_LOG("WARNING: Cannot update reserved identity '%s'\n", identName.c_str());
 		return Accounts.length();
 	}
 	auto Account = Accounts.get_if([&](SimpleAccountStorage const &x) {
-		return x.IDENT->ID.equals(identName);
+		return x.IDENT->ID == identName;
 	});
 	if (!secret) {
 		if (_WildEmptySecret) {
-			ESPEA_LOG("WARNING: Account '%s' will authenticate with any secret!\n", identName);
+			ESPEA_LOG("WARNING: Account '%s' will authenticate with any secret!\n",
+				identName.c_str());
 		} else {
-			ESPEA_LOG("WARNING: Account '%s' will NOT authenticates with any secret!\n", identName);
+			ESPEA_LOG("WARNING: Account '%s' will NOT authenticates with any secret!\n",
+				identName.c_str());
 		}
 	}
 	if (Account) {
-		ESPEA_DEBUG("Updating account [%s], new secret: %s\n", identName, secret.c_str());
+		ESPEA_DEBUG("Updating account [%s], new secret: %s\n",
+			identName.c_str(), secret.c_str());
 		Account->SECRET = std::move(secret);
 		return Accounts.length();
 	} else {
 		auto IDENT = CreateIdentity(identName);
 		if (IDENT) {
-			ESPEA_DEBUGVV("New account [%s], secret: %s\n", identName, secret.c_str());
+			ESPEA_DEBUGVV("New account [%s], secret: %s\n",
+				identName.c_str(), secret.c_str());
 			return Accounts.append({IDENT,std::move(secret)});
 		} else return Accounts.length();
 	}
@@ -118,7 +122,7 @@ size_t BasicAccountAuthority::_populateIdentities(LinkedList<Identity*> &list) c
 
 bool BasicAccountAuthority::removeAccount(char const *identName) {
 	return Accounts.remove_if([&](SimpleAccountStorage const &x) {
-		return x.IDENT->ID.equals(identName);
+		return x.IDENT->ID == identName;
 	});
 }
 
@@ -131,7 +135,7 @@ size_t BasicAccountAuthority::loadAccounts(Stream &source) {
 
 		char const* Ptr = Line.begin();
 		String name = getQuotedToken(Ptr, ':');
-		_addAccount(name.begin(), Ptr);
+		_addAccount(name, Ptr);
 		Count++;
 	}
 	return Count;
@@ -152,9 +156,9 @@ size_t BasicAccountAuthority::saveAccounts(Print &dest) {
 }
 
 Identity& BasicAccountAuthority::getIdentity(String const& identName) const {
-	if (_AnonymousIdent && identName.equalsIgnoreCase(ANONYMOUS.ID))
+	if (_AnonymousIdent && identName.equalsIgnoreCase(FC(ANONYMOUS_ID)))
 		return ANONYMOUS;
-	if (identName.equalsIgnoreCase(AUTHENTICATED.ID))
+	if (identName.equalsIgnoreCase(FC(AUTHENTICATED_ID)))
 		return AUTHENTICATED;
 	auto Account = Accounts.get_if([&](SimpleAccountStorage const &x) {
 		return x.IDENT->ID.equalsIgnoreCase(identName);
@@ -179,15 +183,15 @@ bool BasicAccountAuthority::Authenticate(Credential& cred) {
 
 // Simple Account Authority
 
-String StrSecretKind(SecretKind kind) {
+PGM_P StrSecretKind(SecretKind kind) {
 	switch (kind) {
-		case EA_SECRET_NONE: return "None";
-		case EA_SECRET_PLAINTEXT: return "Plain-text";
-		case EA_SECRET_HTTPDIGESTAUTH_MD5: return "HTTPDigestAuth-MD5";
-		case EA_SECRET_HTTPDIGESTAUTH_MD5SESS: return "HTTPDigestAuth-MD5SESS";
-		case EA_SECRET_HTTPDIGESTAUTH_SHA256: return "HTTPDigestAuth-SHA256";
-		case EA_SECRET_HTTPDIGESTAUTH_SHA256SESS: return "HTTPDigestAuth-SHA256SESS";
-		default: return "Unknown ("+(int)kind+')';
+		case EA_SECRET_NONE: return PSTR_C("None");
+		case EA_SECRET_PLAINTEXT: return PSTR_C("Plain-text");
+		case EA_SECRET_HTTPDIGESTAUTH_MD5: return PSTR_C("HTTPDigestAuth-MD5");
+		case EA_SECRET_HTTPDIGESTAUTH_MD5SESS: return PSTR_C("HTTPDigestAuth-MD5SESS");
+		case EA_SECRET_HTTPDIGESTAUTH_SHA256: return PSTR_C("HTTPDigestAuth-SHA256");
+		case EA_SECRET_HTTPDIGESTAUTH_SHA256SESS: return PSTR_C("HTTPDigestAuth-SHA256SESS");
+		default: return PSTR_C("???");
 	}
 }
 
@@ -199,7 +203,7 @@ bool Validate_ClearPassword(String const& password, Credential& cred) {
 			return false;
 
 		case EA_SECRET_PLAINTEXT:
-			return password.equals(cred.SECRET);
+			return password == cred.SECRET;
 
 		case EA_SECRET_HTTPDIGESTAUTH_MD5:
 		case EA_SECRET_HTTPDIGESTAUTH_MD5SESS: {
@@ -249,7 +253,7 @@ bool Validate_ClearPassword(String const& password, Credential& cred) {
 		}
 
 		default:
-			ESPEA_LOG("WARNING: Un-recognized secret kind '%s'\n", StrSecretKind(cred.SECKIND).c_str());
+			ESPEA_LOG("WARNING: Un-recognized secret kind (%d)\n", cred.SECKIND);
 	}
 	return false;
 }
@@ -264,11 +268,11 @@ bool SimpleAccountAuthority::_doAuthenticate(SimpleAccountStorage const &account
 
 // HTTPDigest Account Authority
 
-String StrDigestType(DigestType type) {
+PGM_P StrDigestType(DigestType type) {
 	switch (type) {
-		case EA_DIGEST_MD5: return "MD5";
-		case EA_DIGEST_SHA256: return "SHA256";
-		default: return "Unknown ("+(int)type+')';
+		case EA_DIGEST_MD5: return PSTR_C("MD5");
+		case EA_DIGEST_SHA256: return PSTR_C("SHA256");
+		default: return PSTR_C("???");
 	}
 }
 
@@ -278,14 +282,14 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 			return false;
 
 		case EA_SECRET_PLAINTEXT:
-			ESPEA_LOG("WARNING: Unsupported secret kind '%s'\n", StrSecretKind(cred.SECKIND).c_str());
+			ESPEA_LOG("WARNING: Unsupported secret kind (%d)\n", cred.SECKIND);
 			return false;
 
 		case EA_SECRET_HTTPDIGESTAUTH_MD5:
 		case EA_SECRET_HTTPDIGESTAUTH_MD5SESS: {
 			if (dtype != EA_DIGEST_MD5) {
 				ESPEA_LOG("WARNING: Unmatched digest type '%s' (expect '%s')\n",
-					StrDigestType(dtype).c_str(), StrDigestType(EA_DIGEST_MD5).c_str());
+					SFPSTR(StrDigestType(dtype)), SFPSTR(StrDigestType(EA_DIGEST_MD5)));
 				return false;
 			}
 			if (HashedPassword.length() != MD5_TXTLEN) {
@@ -318,7 +322,7 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 				return false;
 			}
 			while (qop) {
-				if (!qop.equals("auth")) {
+				if (qop != "auth") {
 					ESPEA_LOG("WARNING: Unsupported QoP '%s'\n", qop.c_str());
 				} else if (!nc || !cnonce) {
 					ESPEA_DEBUG("WARNING: Missing required secret fields\n");
@@ -361,7 +365,7 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 						HashStr.concat(':');
 						HashStr.concat(nonce);
 						HashStr.concat(':');
-						//if (qop.equals("auth")) {
+						//if (qop == FC("auth")) {
 							HashStr.concat(nc);
 							HashStr.concat(':');
 							HashStr.concat(cnonce);
@@ -377,7 +381,7 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 				}
 			}
 
-			return response.equals(RESP);
+			return response == RESP;
 		}
 
 		case EA_SECRET_HTTPDIGESTAUTH_SHA256:
@@ -386,7 +390,7 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 #if 0
 			if (dtype != EA_DIGEST_SHA256) {
 				ESPEA_LOG("WARNING: Unmatched digest type '%s' (expect '%s')\n",
-				StrDigestType(dtype).c_str(), StrDigestType(EA_DIGEST_SHA256).c_str());
+				SFPSTR(StrDigestType(dtype)), SFPSTR(StrDigestType(EA_DIGEST_SHA256)));
 				return false;
 			}
 			if (HashedPassword.length() != SHA256_TXTLEN) {
@@ -419,7 +423,7 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 				return false;
 			}
 			while (qop) {
-				if (!qop.equals("auth")) {
+				if (qop != "auth") {
 					ESPEA_LOG("WARNING: Unsupported QoP '%s'\n", qop.c_str());
 				} else if (!nc || !cnonce) {
 					ESPEA_DEBUG("WARNING: Missing required secret fields\n");
@@ -462,7 +466,7 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 						HashStr.concat(':');
 						HashStr.concat(nonce);
 						HashStr.concat(':');
-						//if (qop.equals("auth")) {
+						//if (qop == FC("auth")) {
 							HashStr.concat(nc);
 							HashStr.concat(':');
 							HashStr.concat(cnonce);
@@ -478,12 +482,12 @@ bool Validate_HTTPDigestPassword(String const& HashedPassword, DigestType dtype,
 				ESPEA_DEBUGVV("> RESP: %s\n",RESP.c_str());
 			}
 
-			return response.equals(RESP);
+			return response == RESP;
 #endif
 		}
 
 		default:
-			ESPEA_LOG("WARNING: Un-recognized secret kind '%s'\n", StrSecretKind(cred.SECKIND).c_str());
+			ESPEA_LOG("WARNING: Un-recognized secret kind (%d)\n", cred.SECKIND);
 	}
 	return false;
 }
@@ -517,7 +521,7 @@ size_t HTTPDigestAccountAuthority::addAccount(char const *identName, char const 
 #endif
 			} break;
 			default: {
-				ESPEA_LOG("WARNING: Un-recognized digest type '%s'\n", StrDigestType(_DType).c_str());
+				ESPEA_LOG("WARNING: Un-recognized digest type (%d)\n", _DType);
 				return Accounts.length();
 			}
 		}
@@ -525,7 +529,7 @@ size_t HTTPDigestAccountAuthority::addAccount(char const *identName, char const 
 	return BasicAccountAuthority::_addAccount(identName, std::move(HA1Password));
 }
 
-size_t HTTPDigestAccountAuthority::_addAccount(char const *identName, String &&secret) {
+size_t HTTPDigestAccountAuthority::_addAccount(String const &identName, String &&secret) {
 	switch (_DType) {
 		case EA_DIGEST_MD5: {
 			if (secret.length() != MD5_TXTLEN) {
@@ -544,7 +548,7 @@ size_t HTTPDigestAccountAuthority::_addAccount(char const *identName, String &&s
 #endif
 		} break;
 		default: {
-			ESPEA_LOG("WARNING: Un-recognized digest type '%s'\n", StrDigestType(_DType).c_str());
+			ESPEA_LOG("WARNING: Un-recognized digest type (%d)\n", _DType);
 			return Accounts.length();
 		}
 	}
