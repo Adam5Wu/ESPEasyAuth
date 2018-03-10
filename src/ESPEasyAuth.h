@@ -57,6 +57,7 @@
 #define STRICT_PROTOCOL
 
 #include <utility>
+#include <functional>
 #include "WString.h"
 #include "LinkedList.h"
 #include "StringArray.h"
@@ -74,11 +75,11 @@ class Identity {
 	friend class IdentityProvider;
 
 	protected:
-		Identity(String const& id) : ID(id) {}
-		Identity(String && id) : ID(std::move(id)) {}
+		Identity(String const &id) : ID(id) {}
+		Identity(String &&id) : ID(std::move(id)) {}
 
 		Identity(Identity const&) = delete;
-		Identity& operator=(Identity const&) = delete;
+		Identity &operator=(Identity const&) = delete;
 
 	public:
 		String const ID;
@@ -86,10 +87,10 @@ class Identity {
 		String toString(void) const { return ID; }
 };
 
-inline bool operator==(const Identity& lhs, const Identity& rhs)
+inline bool operator==(const Identity &lhs, const Identity &rhs)
 { return &lhs == &rhs; }
 
-inline bool operator!=(const Identity& lhs, const Identity& rhs)
+inline bool operator!=(const Identity &lhs, const Identity &rhs)
 { return &lhs != &rhs; }
 
 typedef enum {
@@ -107,10 +108,10 @@ struct Credential {
 	String SECRET;
 
 	Credential(Identity &ident) : IDENT(ident), SECKIND(EA_SECRET_NONE) {}
-	Credential(Identity &ident, SecretKind seckind, String && secret)
+	Credential(Identity &ident, SecretKind seckind, String &&secret)
 	: IDENT(ident), SECKIND(seckind), SECRET(std::move(secret)) {}
 
-	void setSecret(SecretKind seckind, String && secret) {
+	void setSecret(SecretKind seckind, String &&secret) {
 		disposeSecret();
 		SECKIND = seckind;
 		SECRET = std::move(secret);
@@ -127,17 +128,26 @@ struct Credential {
 	}
 };
 
+typedef std::function<void(String &)> AuthSecretCallback;
+
 class Authorizer {
 	public:
 		virtual ~Authorizer(void) {}
-		virtual bool Authenticate(Credential& cred) = 0;
-		virtual bool Authorize(Identity &ident, Credential& cred) = 0;
+		virtual bool Authenticate(Credential &cred,
+			AuthSecretCallback const &secret_callback = nullptr) = 0;
+		virtual bool Authorize(Identity &ident, Credential &cred,
+			AuthSecretCallback const &secret_callback = nullptr) = 0;
 };
 
 class BasicAuthorizer : public Authorizer {
 	public:
-		virtual bool Authorize(Identity &ident, Credential& cred) override
-		{ return Authenticate(cred) && (cred.IDENT == ident); }
+		virtual bool Authorize(Identity &ident, Credential &cred,
+			AuthSecretCallback const &secret_callback = nullptr) override {
+			if (cred.IDENT == ident) {
+				return Authenticate(cred, secret_callback);
+			}
+			return cred.disposeSecret(), false;
+		}
 };
 
 class DummyAuthorizer : public BasicAuthorizer {
@@ -146,8 +156,10 @@ class DummyAuthorizer : public BasicAuthorizer {
 
 		DummyAuthorizer(bool state = false) : AuthState(state) {}
 
-		virtual bool Authenticate(Credential& cred) override
-		{ return cred.disposeSecret(), AuthState; }
+		virtual bool Authenticate(Credential &cred,
+			AuthSecretCallback const &secret_callback = nullptr) override {
+			return cred.disposeSecret(), AuthState;
+		}
 };
 
 class AuthSession {
@@ -160,9 +172,6 @@ class AuthSession {
 		AuthSession(Identity &ident, Authorizer *auth)
 		: AUTH(auth), IDENT(ident) {}
 
-		AuthSession(Credential &cred, Authorizer *auth)
-		: AUTH(auth->Authenticate(cred)?nullptr:auth), IDENT(cred.IDENT) {}
-
 		AuthSession(AuthSession &&session)
 		: AUTH(session.AUTH), IDENT(session.IDENT) {}
 
@@ -170,14 +179,20 @@ class AuthSession {
 
 		bool isAuthorized(void) const { return !AUTH; }
 
-		bool Authorize(SecretKind skind, char const *secret)
-		{ return Authorize(skind, String(secret)); }
-		bool Authorize(SecretKind skind, String && secret) {
-			Credential C(IDENT, skind, std::move(secret));
-			return Authorize(C);
+		bool Authorize(SecretKind skind, char const *secret,
+			AuthSecretCallback const &secret_callback = nullptr) {
+			return Authorize(skind, String(secret), secret_callback);
 		}
-		bool Authorize(Credential &cred) {
-			if (AUTH && AUTH->Authorize(IDENT, cred)) AUTH = nullptr;
+		bool Authorize(SecretKind skind, String &&secret,
+			AuthSecretCallback const &secret_callback = nullptr) {
+			Credential C(IDENT, skind, std::move(secret));
+			return Authorize(C, secret_callback);
+		}
+		bool Authorize(Credential &cred,
+			AuthSecretCallback const &secret_callback = nullptr) {
+			if (AUTH && AUTH->Authorize(IDENT, cred, secret_callback)) {
+				AUTH = nullptr;
+			}
 			return isAuthorized();
 		}
 
@@ -186,7 +201,7 @@ class AuthSession {
 			Ret.concat('{');
 			Ret.concat(IDENT.toString());
 			Ret.concat('(');
-			Ret.concat(isAuthorized()?"Authorized":"Unauthorized");
+			Ret.concat(isAuthorized()?FL("Authorized"):FL("Unauthorized"));
 			Ret.concat(")}",2);
 			return Ret;
 		}
@@ -194,7 +209,7 @@ class AuthSession {
 
 class IdentityProvider {
 	protected:
-		Identity* CreateIdentity(String const& id);
+		Identity* CreateIdentity(String const &id);
 		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const = 0;
 	public:
 		virtual ~IdentityProvider(void) {}
@@ -202,7 +217,7 @@ class IdentityProvider {
 		static Identity UNKNOWN;
 		static Identity ANONYMOUS;
 		static Identity AUTHENTICATED;
-		virtual Identity& getIdentity(String const& identName) const = 0;
+		virtual Identity &getIdentity(String const &identName) const = 0;
 
 		LinkedList<Identity*> parseIdentities(char const *Str) const;
 		String mapIdentities(LinkedList<Identity*> const &idents) const;
@@ -213,7 +228,7 @@ class DummyIdentityProvider : public IdentityProvider {
 		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const override
 		{ return 0; }
 	public:
-		virtual Identity& getIdentity(String const& identName) const override
+		virtual Identity &getIdentity(String const &identName) const override
 		{ return UNKNOWN; }
 };
 
@@ -227,15 +242,28 @@ class SessionAuthority {
 
 		virtual ~SessionAuthority(void) {}
 
-		AuthSession getSession(String const& identName)
-		{ return AuthSession(IDP->getIdentity(identName), AUTH); }
+		AuthSession getSession(String const &identName)
+		{ return getSession(IDP->getIdentity(identName)); }
 
-		AuthSession getSession(char const* identName, SecretKind skind, char const* secret)
-		{ return getSession(identName, skind, String(secret)); }
-		AuthSession getSession(String const& identName, SecretKind skind, String && secret)
-		{ return getSession(Credential(IDP->getIdentity(identName), skind, std::move(secret))); }
-		AuthSession getSession(Credential &&cred)
-		{ return AuthSession(cred, AUTH); }
+		AuthSession getSession(Identity &ident)
+		{ return AuthSession(ident, AUTH); }
+
+		AuthSession getSession(char const* identName, SecretKind skind,
+			char const* secret, AuthSecretCallback const &secret_callback = nullptr)
+		{ return getSession(identName, skind, String(secret), secret_callback); }
+
+		AuthSession getSession(String const &identName, SecretKind skind,
+			String &&secret, AuthSecretCallback const &secret_callback = nullptr) {
+			Credential cred(IDP->getIdentity(identName), skind, std::move(secret));
+			return getSession(cred, secret_callback);
+		}
+
+		AuthSession getSession(Credential &cred,
+			AuthSecretCallback const &secret_callback = nullptr) {
+			AuthSession session(cred.IDENT, AUTH);
+			session.Authorize(cred, secret_callback);
+			return std::move(session);
+		}
 };
 
 class DummySessionAuthority : public SessionAuthority {
@@ -259,7 +287,8 @@ class BasicAccountAuthority : public IdentityProvider, public BasicAuthorizer {
 		LinkedList<SimpleAccountStorage> Accounts;
 
 		virtual size_t _addAccount(String const &identName, String &&secret);
-		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) = 0;
+		virtual bool _doAuthenticate(SimpleAccountStorage const &account,
+			Credential &cred, AuthSecretCallback const &secret_callback) = 0;
 		virtual size_t _populateIdentities(LinkedList<Identity*> &list) const override;
 
 	public:
@@ -272,13 +301,15 @@ class BasicAccountAuthority : public IdentityProvider, public BasicAuthorizer {
 		size_t loadAccounts(Stream &source);
 		size_t saveAccounts(Print &dest);
 
-		virtual Identity& getIdentity(String const& identName) const override;
-		virtual bool Authenticate(Credential& cred) override;
+		virtual Identity &getIdentity(String const &identName) const override;
+		virtual bool Authenticate(Credential &cred,
+			AuthSecretCallback const &secret_callback = nullptr) override;
 };
 
 class SimpleAccountAuthority : public BasicAccountAuthority {
 	protected:
-		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) override;
+		virtual bool _doAuthenticate(SimpleAccountStorage const &account,
+			Credential &cred, AuthSecretCallback const &secret_callback) override;
 
 	public:
 		SimpleAccountAuthority(bool AnonymousIdent = true, bool AllowNoPassword = true)
@@ -290,14 +321,17 @@ class SimpleAccountAuthority : public BasicAccountAuthority {
 
 typedef enum {
 	EA_DIGEST_MD5,
+	EA_DIGEST_MD5_HA1,
 	EA_DIGEST_SHA256,
+	EA_DIGEST_SHA256_HA1,
 } DigestType;
 
 class HTTPDigestAccountAuthority : public BasicAccountAuthority {
 	protected:
 		DigestType const _DType;
 		virtual size_t _addAccount(String const &identName, String &&secret) override;
-		virtual bool _doAuthenticate(SimpleAccountStorage const &account, Credential& cred) override;
+		virtual bool _doAuthenticate(SimpleAccountStorage const &account,
+			Credential &cred, AuthSecretCallback const &secret_callback) override;
 
 	public:
 		String const Realm;
