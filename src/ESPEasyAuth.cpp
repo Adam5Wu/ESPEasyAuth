@@ -319,7 +319,7 @@ bool Validate_HTTPDigestPassword(String const &HashedPassword, DigestType dtype,
 				return false;
 			}
 			if (HashedPassword.length() != MD5_TXTLEN) {
-				ESPEA_DEBUG("WARNING: Unexpected digest text length %"PRIi16" (expect %"PRIi16")\n",
+				ESPEA_DEBUG("WARNING: Unexpected digest text length %d (expect %d)\n",
 					HashedPassword.length(), (unsigned int)MD5_TXTLEN);
 				return false;
 			}
@@ -343,7 +343,7 @@ bool Validate_HTTPDigestPassword(String const &HashedPassword, DigestType dtype,
 
 			// Validate input
 			if (response.length() != MD5_TXTLEN) {
-				ESPEA_DEBUG("WARNING: Unexpected response length %"PRIi16" (expect %"PRIi16")\n",
+				ESPEA_DEBUG("WARNING: Unexpected response length %d (expect %d)\n",
 					response.length(), (unsigned int)MD5_TXTLEN);
 				return false;
 			}
@@ -426,7 +426,7 @@ bool Validate_HTTPDigestPassword(String const &HashedPassword, DigestType dtype,
 				return false;
 			}
 			if (HashedPassword.length() != SHA256_TXTLEN) {
-				ESPEA_DEBUG("WARNING: Unexpected digest text length %"PRIi16" (expect %"PRIi16")\n",
+				ESPEA_DEBUG("WARNING: Unexpected digest text length %d (expect %d)\n",
 				HashedPassword.length(), (unsigned int)SHA256_TXTLEN);
 				return false;
 			}
@@ -450,7 +450,7 @@ bool Validate_HTTPDigestPassword(String const &HashedPassword, DigestType dtype,
 
 			// Validate input
 			if (response.length() != SHA256_TXTLEN) {
-				ESPEA_DEBUG("WARNING: Unexpected response length %"PRIi16" (expect %"PRIi16")\n",
+				ESPEA_DEBUG("WARNING: Unexpected response length %d (expect %d)\n",
 					response.length(), (unsigned int)SHA256_TXTLEN);
 				return false;
 			}
@@ -569,7 +569,7 @@ size_t HTTPDigestAccountAuthority::_addAccount(String const &identName, String &
 	switch (_DType) {
 		case EA_DIGEST_MD5: {
 			if (secret.length() != MD5_TXTLEN) {
-				ESPEA_LOG("WARNING: Unexpected secret length %"PRIi16" (expect %"PRIi16")\n",
+				ESPEA_LOG("WARNING: Unexpected secret length %d (expect %d)\n",
 					secret.length(), (unsigned int)MD5_TXTLEN);
 				return Accounts.length();
 			}
@@ -577,7 +577,7 @@ size_t HTTPDigestAccountAuthority::_addAccount(String const &identName, String &
 		case EA_DIGEST_SHA256: {
 #if 0
 			if (secret.length() != SHA256_TXTLEN) {
-				ESPEA_LOG("WARNING: Unexpected secret length %"PRIi16" (expect %"PRIi16")\n",
+				ESPEA_LOG("WARNING: Unexpected secret length %d (expect %d)\n",
 					secret.length(), (unsigned int)SHA256_TXTLEN);
 				return Accounts.length();
 			}
