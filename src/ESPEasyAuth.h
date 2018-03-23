@@ -316,7 +316,10 @@ class SimpleAccountAuthority : public BasicAccountAuthority {
 		: BasicAccountAuthority(AnonymousIdent, AllowNoPassword) {}
 		~SimpleAccountAuthority(void) {}
 
-		size_t addAccount(char const *identName, char const *password);
+		size_t addAccount(char const *identName, char const *password)
+		{ return addAccount(String(identName), String(password)); }
+		size_t addAccount(String const &identName, String && password)
+		{ return _addAccount(identName, std::move(password)); }
 };
 
 typedef enum {
@@ -339,7 +342,9 @@ class HTTPDigestAccountAuthority : public BasicAccountAuthority {
 			bool AnonymousIdent = true, bool AllowNoPassword = true)
 		: BasicAccountAuthority(AnonymousIdent, AllowNoPassword), Realm(realm), _DType(dtype) {}
 
-		size_t addAccount(char const *identName, char const *password);
+		size_t addAccount(char const *identName, char const *password)
+		{ return addAccount(String(identName), String(password)); }
+		size_t addAccount(String const &identName, String && password);
 };
 
 #endif // ESPEasyAuth_H

@@ -278,10 +278,6 @@ bool Validate_ClearPassword(String const &password, Credential &cred,
 	return false;
 }
 
-size_t SimpleAccountAuthority::addAccount(char const *identName, char const *password) {
-	return _addAccount(identName, password);
-}
-
 bool SimpleAccountAuthority::_doAuthenticate(SimpleAccountStorage const &account,
 	Credential &cred, AuthSecretCallback const &secret_callback) {
 	return Validate_ClearPassword(account.SECRET, cred, secret_callback);
@@ -528,38 +524,38 @@ bool Validate_HTTPDigestPassword(String const &HashedPassword, DigestType dtype,
 	return false;
 }
 
-size_t HTTPDigestAccountAuthority::addAccount(char const *identName, char const *password) {
-	String HA1Password;
-	if (password && *password) {
-		switch (_DType) {
-			case EA_DIGEST_MD5: {
-				HA1Password.concat('?',MD5_TXTLEN);
-				String HashStr;
-				HashStr.concat(identName);
-				HashStr.concat(':');
-				HashStr.concat(Realm);
-				HashStr.concat(':');
-				HashStr.concat(password);
-				ESPEA_DEBUGVV("> MD5(%s)\n", HashStr.c_str());
-				textMD5_LC((uint8_t*)HashStr.begin(),HashStr.length(),HA1Password.begin());
-			} break;
-			case EA_DIGEST_SHA256: {
+size_t HTTPDigestAccountAuthority::addAccount(String const &identName, String && password) {
+	String HA1Password(std::move(password));
+	switch (_DType) {
+		case EA_DIGEST_MD5: {
+			String HashStr;
+			HashStr.concat(identName);
+			HashStr.concat(':');
+			HashStr.concat(Realm);
+			HashStr.concat(':');
+			HashStr.concat(HA1Password);
+			HA1Password.clear();
+			HA1Password.concat('?', MD5_TXTLEN);
+			ESPEA_DEBUGVV("> MD5(%s)\n", HashStr.c_str());
+			textMD5_LC((uint8_t*)HashStr.begin(),HashStr.length(),HA1Password.begin());
+		} break;
+		case EA_DIGEST_SHA256: {
 #if 0
-				HA1Password.concat('?',SHA256_TXTLEN);
-				String HashStr;
-				HashStr.concat(identName);
-				HashStr.concat(':');
-				HashStr.concat(Realm);
-				HashStr.concat(':');
-				HashStr.concat(password);
-				ESPEA_DEBUGVV("> MD5(%s)\n", HashStr.c_str());
-				textMD5_LC((uint8_t*)HashStr.begin(),HashStr.length(),HA1Password.begin());
+			String HashStr;
+			HashStr.concat(identName);
+			HashStr.concat(':');
+			HashStr.concat(Realm);
+			HashStr.concat(':');
+			HashStr.concat(HA1Password);
+			HA1Password.clear();
+			HA1Password.concat('?', SHA256_TXTLEN);
+			ESPEA_DEBUGVV("> MD5(%s)\n", HashStr.c_str());
+			textSHA256_LC((uint8_t*)HashStr.begin(),HashStr.length(),HA1Password.begin());
 #endif
-			} break;
-			default: {
-				ESPEA_LOG("WARNING: Un-recognized digest type (%d)\n", _DType);
-				return Accounts.length();
-			}
+		} break;
+		default: {
+			ESPEA_LOG("WARNING: Un-recognized digest type (%d)\n", _DType);
+			return Accounts.length();
 		}
 	}
 	return BasicAccountAuthority::_addAccount(identName, std::move(HA1Password));
